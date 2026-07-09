@@ -1,4 +1,4 @@
-const CACHE = "spiritual-warfare-v6";
+const CACHE = "spiritual-warfare-v7";
 const ASSETS = [
   "./",
   "./index.html",

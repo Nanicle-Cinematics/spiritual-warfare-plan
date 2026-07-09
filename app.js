@@ -33,12 +33,16 @@ const DAYS = [
 
 const MEMORY = ["Ephesians 6:10-18", "Psalm 91", "Romans 8:31-39", "James 4:7-8", "2 Corinthians 10:3-5", "Isaiah 54:17", "Luke 10:19", "Philippians 4:6-9", "1 John 4:4", "Revelation 12:11", "Psalm 27"];
 const KEY = "spiritual_warfare_pwa_v2";
+const THEME_KEY = "spiritual_warfare_theme";
 const BIBLE_API = "https://bible-api.com/";
 const ALL_SCRIPTURES = [...new Set([...DAYS.flatMap(day => day[2]), ...MEMORY])];
 let deferredPrompt;
 let refreshing = false;
 let state = loadState();
 let activeDayIndex = null;
+let currentTheme = loadTheme();
+
+applyTheme(currentTheme);
 
 function loadState() {
   try {
@@ -53,6 +57,26 @@ function loadState() {
   } catch {
     return { notes: {}, done: {}, journal: "", scriptureCache: {}, readerFontSize: 1 };
   }
+}
+
+function loadTheme() {
+  const stored = localStorage.getItem(THEME_KEY);
+  if (stored === "light" || stored === "dark") return stored;
+  return matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+function applyTheme(theme) {
+  currentTheme = theme;
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem(THEME_KEY, theme);
+  document.querySelector("meta[name='theme-color']")?.setAttribute("content", theme === "light" ? "#eef4ff" : "#050816");
+  const button = document.getElementById("themeToggle");
+  const label = document.getElementById("themeToggleText");
+  if (button) {
+    button.setAttribute("aria-pressed", String(theme === "light"));
+    button.setAttribute("aria-label", `Switch to ${theme === "light" ? "dark" : "light"} mode`);
+  }
+  if (label) label.textContent = theme === "light" ? "Light" : "Dark";
 }
 
 function save() {
@@ -326,6 +350,11 @@ function bind() {
   document.querySelectorAll("[data-scripture]").forEach(button => {
     button.addEventListener("click", () => openScripture(button.dataset.scripture));
   });
+
+  const themeToggle = document.getElementById("themeToggle");
+  if (themeToggle) {
+    themeToggle.onclick = () => applyTheme(currentTheme === "light" ? "dark" : "light");
+  }
 }
 
 function filterPlan() {
@@ -584,8 +613,9 @@ document.getElementById("installBtn").addEventListener("click", async () => {
   document.getElementById("installBtn").hidden = true;
 });
 
-if ("serviceWorker" in navigator) {
+if (navigator.serviceWorker?.register) {
   navigator.serviceWorker.register("./service-worker.js").then(registration => {
+    if (!registration?.addEventListener) return;
     registration.addEventListener("updatefound", () => {
       const worker = registration.installing;
       if (!worker) return;
@@ -595,9 +625,9 @@ if ("serviceWorker" in navigator) {
         }
       });
     });
-  });
+  }).catch(() => {});
 
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
+  navigator.serviceWorker.addEventListener?.("controllerchange", () => {
     if (refreshing) return;
     refreshing = true;
     location.reload();

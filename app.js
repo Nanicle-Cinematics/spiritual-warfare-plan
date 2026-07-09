@@ -91,14 +91,17 @@ function dayCard(day, index) {
       <span class="status-pill ${isDone ? "done-pill" : ""}">${isDone ? "Complete" : "In progress"}</span>
     </div>
     <section class="day-section read-section">
+      <span class="section-icon" aria-hidden="true">01</span>
       <h3>Read</h3>
       <ul>${day[2].map(ref => `<li>${scriptureButton(ref)}</li>`).join("")}</ul>
     </section>
     <section class="day-section prayer-section">
+      <span class="section-icon" aria-hidden="true">02</span>
       <h3>Prayer</h3>
       <p>${escapeHtml(day[3])}</p>
     </section>
     <section class="day-section reflection-section">
+      <span class="section-icon" aria-hidden="true">03</span>
       <h3>Reflection</h3>
       <p>${escapeHtml(day[4])}</p>
     </section>
@@ -115,21 +118,36 @@ function todayCard(day, index) {
   const n = index + 1;
   const isDone = Boolean(state.done[n]);
   return `<article class="today-workspace">
-    <div class="today-topline">
-      <span class="status-pill">Day ${n} of ${DAYS.length}</span>
-      <span class="status-pill ${isDone ? "done-pill" : ""}">${isDone ? "Complete" : "Next study"}</span>
+    <div class="today-hero">
+      <div>
+        <p class="section-label">Today's Office</p>
+        <div class="today-topline">
+          <span class="status-pill">Day ${n} of ${DAYS.length}</span>
+          <span class="status-pill ${isDone ? "done-pill" : ""}">${isDone ? "Complete" : "Next study"}</span>
+        </div>
+        <h2>${escapeHtml(day[1])}</h2>
+        <p class="today-week">${escapeHtml(day[0])}</p>
+      </div>
+      <div class="today-score">
+        <strong>${completionCount()}</strong>
+        <span>days complete</span>
+      </div>
     </div>
-    <h2>${escapeHtml(day[1])}</h2>
-    <p class="today-week">${escapeHtml(day[0])}</p>
     <div class="today-actions">
       <button class="primary" id="startReading" type="button">Start Reading</button>
       <button class="secondary" id="focusNotes" type="button">Open Notes</button>
       <button class="${isDone ? "secondary" : "primary"}" id="toggleTodayDone" type="button">${isDone ? "Mark Incomplete" : "Mark Complete"}</button>
     </div>
+    <div class="mission-grid">
+      <div><span>Readings</span><strong>${day[2].length}</strong></div>
+      <div><span>Cached scriptures</span><strong>${day[2].filter(ref => state.scriptureCache?.[ref]).length}</strong></div>
+      <div><span>Completion</span><strong>${Math.round(completionCount() / DAYS.length * 100)}%</strong></div>
+    </div>
     <div class="day-nav">
       <button class="secondary" id="prevDay" type="button" ${index === 0 ? "disabled" : ""}>Previous Day</button>
       <button class="secondary" id="nextDay" type="button" ${index === DAYS.length - 1 ? "disabled" : ""}>Next Day</button>
     </div>
+    <p class="workspace-note">Move through the readings, pray the passage back to God, then capture what needs obedience today.</p>
     ${dayCard(day, index)}
   </article>`;
 }
@@ -186,16 +204,18 @@ function render() {
     <div id="planList">${weekSections()}</div>`;
 
   document.getElementById("memory").innerHTML = `
-    <div class="card">
+    <div class="card feature-card">
+      <p class="section-label">Armory</p>
       <h2>Memory Scriptures</h2>
-      <p class="footer-note">Use these as your core warfare verses. Read, speak, memorize, and pray them.</p>
+      <p class="footer-note">Core passages for worship, resistance, courage, and discernment. Saved passages are available faster on this device.</p>
     </div>
     <div class="memory">${MEMORY.map(v => `<div class="verse">${scriptureButton(v)}<br><small>Read, speak, memorize, and pray it.</small></div>`).join("")}</div>`;
 
   document.getElementById("journal").innerHTML = `
-    <div class="card">
+    <div class="card feature-card">
+      <p class="section-label">Record</p>
       <h2>Prayer Journal</h2>
-      <p>Use this as your running prayer record through the 30 days.</p>
+      <p>Use this as your running prayer record through the 30 days. Export regularly if this becomes a long-term spiritual record.</p>
       <div class="note-head"><span class="muted">Journal entries</span><span class="autosave" id="journalSaveStatus">Autosaved</span></div>
       <textarea id="journalBox" placeholder="Write prayers, dreams, testimonies, or answered prayers...">${escapeHtml(state.journal || "")}</textarea>
       <div class="tools">

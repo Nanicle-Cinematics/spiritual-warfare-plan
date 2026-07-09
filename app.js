@@ -38,6 +38,7 @@ const ALL_SCRIPTURES = [...new Set([...DAYS.flatMap(day => day[2]), ...MEMORY])]
 let deferredPrompt;
 let refreshing = false;
 let state = loadState();
+let activeDayIndex = null;
 
 function loadState() {
   try {
@@ -46,16 +47,26 @@ function loadState() {
       notes: stored.notes || {},
       done: stored.done || {},
       journal: stored.journal || "",
-      scriptureCache: stored.scriptureCache || {}
+      scriptureCache: stored.scriptureCache || {},
+      readerFontSize: stored.readerFontSize || 1
     };
   } catch {
-    return { notes: {}, done: {}, journal: "", scriptureCache: {} };
+    return { notes: {}, done: {}, journal: "", scriptureCache: {}, readerFontSize: 1 };
   }
 }
 
 function save() {
   localStorage.setItem(KEY, JSON.stringify(state));
   updateProgress();
+}
+
+function showSaved(target) {
+  if (!target) return;
+  target.textContent = "Saving...";
+  window.clearTimeout(target.saveTimer);
+  target.saveTimer = window.setTimeout(() => {
+    target.textContent = "Saved";
+  }, 350);
 }
 
 function escapeHtml(value) {
@@ -72,16 +83,54 @@ function dayCard(day, index) {
   const n = index + 1;
   const isDone = Boolean(state.done[n]);
   return `<article class="day${isDone ? " complete" : ""}" id="day-${n}">
-    <p class="week">${escapeHtml(day[0])}</p>
-    <h2>Day ${n}: ${escapeHtml(day[1])}</h2>
-    <h3>Read</h3>
-    <ul>${day[2].map(ref => `<li>${scriptureButton(ref)}</li>`).join("")}</ul>
-    <div class="prompt"><strong>Prayer:</strong><br>${escapeHtml(day[3])}</div>
-    <h3>Reflection</h3>
-    <p>${escapeHtml(day[4])}</p>
-    <label for="note-${n}" class="muted">Notes for Day ${n}</label>
+    <div class="day-head">
+      <div>
+        <p class="week">${escapeHtml(day[0])}</p>
+        <h2>Day ${n}: ${escapeHtml(day[1])}</h2>
+      </div>
+      <span class="status-pill ${isDone ? "done-pill" : ""}">${isDone ? "Complete" : "In progress"}</span>
+    </div>
+    <section class="day-section read-section">
+      <h3>Read</h3>
+      <ul>${day[2].map(ref => `<li>${scriptureButton(ref)}</li>`).join("")}</ul>
+    </section>
+    <section class="day-section prayer-section">
+      <h3>Prayer</h3>
+      <p>${escapeHtml(day[3])}</p>
+    </section>
+    <section class="day-section reflection-section">
+      <h3>Reflection</h3>
+      <p>${escapeHtml(day[4])}</p>
+    </section>
+    <div class="note-head">
+      <label for="note-${n}" class="muted">Notes for Day ${n}</label>
+      <span class="autosave" data-save-status="${n}">Autosaved</span>
+    </div>
     <textarea id="note-${n}" data-note="${n}" placeholder="Write your notes for Day ${n}...">${escapeHtml(state.notes[n] || "")}</textarea>
     <label class="done"><input type="checkbox" data-done="${n}" ${isDone ? "checked" : ""}> Mark complete</label>
+  </article>`;
+}
+
+function todayCard(day, index) {
+  const n = index + 1;
+  const isDone = Boolean(state.done[n]);
+  return `<article class="today-workspace">
+    <div class="today-topline">
+      <span class="status-pill">Day ${n} of ${DAYS.length}</span>
+      <span class="status-pill ${isDone ? "done-pill" : ""}">${isDone ? "Complete" : "Next study"}</span>
+    </div>
+    <h2>${escapeHtml(day[1])}</h2>
+    <p class="today-week">${escapeHtml(day[0])}</p>
+    <div class="today-actions">
+      <button class="primary" id="startReading" type="button">Start Reading</button>
+      <button class="secondary" id="focusNotes" type="button">Open Notes</button>
+      <button class="${isDone ? "secondary" : "primary"}" id="toggleTodayDone" type="button">${isDone ? "Mark Incomplete" : "Mark Complete"}</button>
+    </div>
+    <div class="day-nav">
+      <button class="secondary" id="prevDay" type="button" ${index === 0 ? "disabled" : ""}>Previous Day</button>
+      <button class="secondary" id="nextDay" type="button" ${index === DAYS.length - 1 ? "disabled" : ""}>Next Day</button>
+    </div>
+    ${dayCard(day, index)}
   </article>`;
 }
 
@@ -95,10 +144,37 @@ function nextDayIndex() {
   return next === -1 ? DAYS.length - 1 : next;
 }
 
+function completionCount() {
+  return Object.values(state.done).filter(Boolean).length;
+}
+
+function weekSections() {
+  const weeks = [];
+  DAYS.forEach((day, index) => {
+    let week = weeks.find(item => item.name === day[0]);
+    if (!week) {
+      week = { name: day[0], days: [] };
+      weeks.push(week);
+    }
+    week.days.push({ day, index });
+  });
+
+  return weeks.map((week, weekIndex) => {
+    const complete = week.days.filter(({ index }) => state.done[index + 1]).length;
+    return `<details class="week-group" ${weekIndex === 0 ? "open" : ""}>
+      <summary>
+        <span>${escapeHtml(week.name)}</span>
+        <small>${complete}/${week.days.length} complete</small>
+      </summary>
+      ${week.days.map(({ day, index }) => dayCard(day, index)).join("")}
+    </details>`;
+  }).join("");
+}
+
 function render() {
-  const todayIndex = nextDayIndex();
-  document.getElementById("today").innerHTML = dayCard(DAYS[todayIndex], todayIndex) +
-    `<div class="card"><h2>Daily Mode</h2><p class="footer-note">This page opens to your next unfinished day. Your progress stays on this device.</p></div>`;
+  if (activeDayIndex === null) activeDayIndex = nextDayIndex();
+  const todayIndex = activeDayIndex;
+  document.getElementById("today").innerHTML = todayCard(DAYS[todayIndex], todayIndex);
 
   document.getElementById("plan").innerHTML = `
     <div class="tools filter-row">
@@ -106,7 +182,8 @@ function render() {
       <button class="primary" id="openNext" type="button">Next unfinished</button>
       <button class="secondary" id="showIncomplete" type="button" aria-pressed="false">Incomplete only</button>
     </div>
-    <div id="planList">${DAYS.map(dayCard).join("")}</div>`;
+    <div class="week-progress">${weekProgressMarkup()}</div>
+    <div id="planList">${weekSections()}</div>`;
 
   document.getElementById("memory").innerHTML = `
     <div class="card">
@@ -119,6 +196,7 @@ function render() {
     <div class="card">
       <h2>Prayer Journal</h2>
       <p>Use this as your running prayer record through the 30 days.</p>
+      <div class="note-head"><span class="muted">Journal entries</span><span class="autosave" id="journalSaveStatus">Autosaved</span></div>
       <textarea id="journalBox" placeholder="Write prayers, dreams, testimonies, or answered prayers...">${escapeHtml(state.journal || "")}</textarea>
       <div class="tools">
         <button class="primary" id="exportData" type="button">Export Notes</button>
@@ -134,11 +212,30 @@ function render() {
   updateProgress();
 }
 
+function weekProgressMarkup() {
+  const weeks = [];
+  DAYS.forEach((day, index) => {
+    let week = weeks.find(item => item.name === day[0]);
+    if (!week) {
+      week = { name: day[0], total: 0, done: 0 };
+      weeks.push(week);
+    }
+    week.total += 1;
+    if (state.done[index + 1]) week.done += 1;
+  });
+
+  return weeks.map(week => `<div class="week-stat">
+    <strong>${week.done}/${week.total}</strong>
+    <span>${escapeHtml(week.name.replace(/^Week\s+\d+:\s*/, ""))}</span>
+  </div>`).join("");
+}
+
 function bind() {
   document.querySelectorAll("[data-note]").forEach(textarea => {
     textarea.addEventListener("input", event => {
       state.notes[event.target.dataset.note] = event.target.value;
       save();
+      showSaved(document.querySelector(`[data-save-status="${event.target.dataset.note}"]`));
     });
   });
 
@@ -155,11 +252,43 @@ function bind() {
     journalBox.addEventListener("input", event => {
       state.journal = event.target.value;
       save();
+      showSaved(document.getElementById("journalSaveStatus"));
     });
   }
 
   document.getElementById("openNext")?.addEventListener("click", () => {
+    activeDayIndex = nextDayIndex();
     switchTab("today");
+    render();
+    scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  document.getElementById("startReading")?.addEventListener("click", () => {
+    document.querySelector("#today [data-scripture]")?.click();
+  });
+
+  document.getElementById("focusNotes")?.addEventListener("click", () => {
+    const textarea = document.querySelector(`#note-${activeDayIndex + 1}`);
+    textarea?.scrollIntoView({ behavior: "smooth", block: "center" });
+    textarea?.focus();
+  });
+
+  document.getElementById("toggleTodayDone")?.addEventListener("click", () => {
+    const n = activeDayIndex + 1;
+    state.done[n] = !state.done[n];
+    save();
+    render();
+  });
+
+  document.getElementById("prevDay")?.addEventListener("click", () => {
+    activeDayIndex = Math.max(0, activeDayIndex - 1);
+    render();
+    scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  document.getElementById("nextDay")?.addEventListener("click", () => {
+    activeDayIndex = Math.min(DAYS.length - 1, activeDayIndex + 1);
+    render();
     scrollTo({ top: 0, behavior: "smooth" });
   });
 
@@ -269,6 +398,11 @@ function ensureReader() {
           <p class="reader-meta" id="readerMeta" aria-live="polite"></p>
           <button class="secondary" id="readerNext" type="button">Next</button>
         </div>
+        <div class="reader-format">
+          <button class="secondary" id="readerSmaller" type="button" aria-label="Decrease scripture text size">A-</button>
+          <span id="readerSizeLabel">Text size</span>
+          <button class="secondary" id="readerLarger" type="button" aria-label="Increase scripture text size">A+</button>
+        </div>
         <div class="reader-body" id="readerBody" tabindex="0"></div>
       </section>
     </div>`);
@@ -277,6 +411,8 @@ function ensureReader() {
   document.getElementById("readerClose").addEventListener("click", closeScripture);
   document.getElementById("readerPrev").addEventListener("click", () => openAdjacentScripture(-1));
   document.getElementById("readerNext").addEventListener("click", () => openAdjacentScripture(1));
+  document.getElementById("readerSmaller").addEventListener("click", () => setReaderFontSize(-0.1));
+  document.getElementById("readerLarger").addEventListener("click", () => setReaderFontSize(0.1));
   reader.addEventListener("click", event => {
     if (event.target === reader) closeScripture();
   });
@@ -305,6 +441,7 @@ async function openScripture(ref) {
   renderReaderNav(ref);
   reader.hidden = false;
   document.body.classList.add("reader-open");
+  applyReaderFontSize();
 
   try {
     if (state.scriptureCache?.[ref]) {
@@ -356,6 +493,20 @@ function renderScriptureText(ref, payload, message) {
     button.classList.add("cached");
     button.title = "Available from your local scripture cache";
   });
+}
+
+function setReaderFontSize(delta) {
+  state.readerFontSize = Math.min(1.5, Math.max(0.9, Number(state.readerFontSize || 1) + delta));
+  save();
+  applyReaderFontSize();
+}
+
+function applyReaderFontSize() {
+  const reader = document.getElementById("scriptureReader");
+  const label = document.getElementById("readerSizeLabel");
+  if (!reader) return;
+  reader.style.setProperty("--reader-scale", String(state.readerFontSize || 1));
+  if (label) label.textContent = `${Math.round((state.readerFontSize || 1) * 100)}%`;
 }
 
 function renderReaderNav(ref) {

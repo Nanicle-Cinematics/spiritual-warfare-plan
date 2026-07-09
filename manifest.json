@@ -2,14 +2,14 @@
   "name": "30-Day Spiritual Warfare Scripture Plan",
   "short_name": "Warfare Plan",
   "description": "A Christ-centered 30-day Scripture plan with readings, prayers, memory verses, notes, and a prayer journal.",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#071020",
   "theme_color": "#0b1224",
   "icons": [
     {
-      "src": "/assets/icon.svg",
+      "src": "assets/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"

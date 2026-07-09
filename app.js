@@ -414,7 +414,7 @@ document.getElementById("installBtn").addEventListener("click", async () => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/service-worker.js").then(registration => {
+  navigator.serviceWorker.register("./service-worker.js").then(registration => {
     registration.addEventListener("updatefound", () => {
       const worker = registration.installing;
       if (!worker) return;

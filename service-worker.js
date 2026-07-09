@@ -1,13 +1,13 @@
 const CACHE = "spiritual-warfare-v4";
 const ASSETS = [
-  "/",
-  "/index.html",
-  "/styles.css",
-  "/app.js",
-  "/manifest.json",
-  "/assets/icon.svg",
-  "/robots.txt",
-  "/sitemap.xml"
+  "./",
+  "./index.html",
+  "./styles.css",
+  "./app.js",
+  "./manifest.json",
+  "./assets/icon.svg",
+  "./robots.txt",
+  "./sitemap.xml"
 ];
 
 self.addEventListener("install", event => {
